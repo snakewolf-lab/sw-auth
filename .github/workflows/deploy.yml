@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-and-deploy:
@@ -58,9 +58,7 @@ jobs:
       - name: Verify build assets
         run: |
           echo "Checking public/build..."
-
           test -f public/build/manifest.json
-
           echo "Build assets:"
           find public/build -maxdepth 2 -type f
 
@@ -89,7 +87,6 @@ jobs:
 
           # デプロイ対象の確認
           echo "Checking deployment..."
-
           test -f deploy/artisan
           test -f deploy/composer.json
           test -f deploy/public/index.php
@@ -101,7 +98,7 @@ jobs:
           ls -la deploy/
           ls -la deploy/public/build/
 
-      # 10. build ブランチへPush
+      # 10. build ブランチへPush（強制書き換え・完全削除）
       - name: Deploy to build branch
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -109,4 +106,5 @@ jobs:
           publish_branch: build
           publish_dir: ./deploy
           force_orphan: true
+          keep_files: false
           commit_message: "build: production release (${{ github.sha }})"
