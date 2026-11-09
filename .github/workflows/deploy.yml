@@ -3,38 +3,54 @@ name: Build and Push to Build Branch
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+
     steps:
-      # 1. 開発ブランチ (dev) のコードを取得 (全履歴を取得するため fetch-depth: 0 を追加)
+      # 1. dev ブランチを取得
       - name: Checkout dev branch
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: dev
+          fetch-depth: 1
 
-      # 2. Node.js のセットアップ
+      # 2. Node.js セットアップ
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "npm"
+          cache: npm
 
-      # 3. パッケージインストール & アセットビルド (public/build の生成)
-      - name: Install dependencies & Build assets
+      # 3. 依存関係インストール
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. 本番ビルド
+      - name: Build assets
+        run: npm run build
+
+      # 5. デプロイ用ディレクトリ作成
+      - name: Prepare deployment files
         run: |
-          npm ci
-          npm run build
+          mkdir -p deploy
 
-      # 4. build ブランチへ成果物を自動コミット＆Push (PATを使用)
+          # 必要なファイルをコピー
+          cp -r public/. deploy/
+
+          # 不要なファイルを除外
+          rm -rf deploy/build/.git
+          rm -rf deploy/build/node_modules
+
+      # 6. build ブランチへデプロイ
       - name: Deploy to build branch
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.BUILD_REPO_PAT }}
           publish_branch: build
-          publish_dir: ./
-          keep_files: false
-          exclude_assets: ".git,.github,node_modules,tests,resources/css,resources/js"
+          publish_dir: ./deploy
+          force_orphan: true
           commit_message: "build: production release (${{ github.sha }})"
