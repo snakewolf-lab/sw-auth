@@ -11,11 +11,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. dev ブランチ取得
+      # 1. dev ブランチを取得
       - name: Checkout dev branch
         uses: actions/checkout@v4
         with:
           ref: dev
+          fetch-depth: 1
 
       # 2. PHP セットアップ
       - name: Setup PHP
@@ -29,38 +30,78 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
-      # 4. Composer
+      # 4. Composer 認証（Publicリポジトリなら不要）
+      # - name: Configure Composer authentication
+      #   run: composer config --global github-oauth.github.com "${{ secrets.COMPOSER_GITHUB_TOKEN }}"
+
+      # 5. Composer 依存関係インストール
       - name: Install Composer dependencies
-        run: composer install --no-dev --optimize-autoloader --no-interaction
-
-      # 5. npm
-      - name: Install npm dependencies
         run: |
-          npm ci
-          npm run build
+          composer install \
+            --no-dev \
+            --optimize-autoloader \
+            --no-interaction \
+            --prefer-dist
 
-      # 6. デプロイ用ファイル作成
+      # 6. npm 依存関係インストール
+      - name: Install npm dependencies
+        run: npm ci
+
+      # 7. 本番アセットビルド
+      - name: Build assets
+        run: npm run build
+
+      # 8. ビルド成果物確認
+      - name: Verify build assets
+        run: |
+          echo "Checking public/build..."
+
+          test -f public/build/manifest.json
+
+          echo "Build assets:"
+          find public/build -maxdepth 2 -type f
+
+      # 9. デプロイ用ファイル作成
       - name: Prepare deployment
         run: |
-          mkdir deploy
+          mkdir -p deploy
 
-          rsync -a ./ deploy/ \
+          rsync -av ./ deploy/ \
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='node_modules/' \
             --exclude='tests/' \
+            --exclude='resources/css/' \
+            --exclude='resources/js/' \
+            --exclude='resources/sass/' \
             --exclude='.env' \
             --exclude='.env.*' \
             --exclude='deploy/' \
             --exclude='storage/logs/*' \
             --exclude='storage/framework/cache/*' \
             --exclude='storage/framework/sessions/*' \
-            --exclude='storage/framework/views/*'
+            --exclude='storage/framework/views/*' \
+            --exclude='storage/framework/testing/*' \
+            --exclude='storage/app/private/*'
 
-      # 7. build ブランチへPush
+          # デプロイ対象の確認
+          echo "Checking deployment..."
+
+          test -f deploy/artisan
+          test -f deploy/composer.json
+          test -f deploy/public/index.php
+          test -f deploy/public/build/manifest.json
+          test -d deploy/vendor
+          test -d deploy/resources/views
+
+          echo "Deployment structure:"
+          ls -la deploy/
+          ls -la deploy/public/build/
+
+      # 10. build ブランチへPush
       - name: Deploy to build branch
         uses: peaceiris/actions-gh-pages@v4
         with:
