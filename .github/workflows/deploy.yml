@@ -11,41 +11,56 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. dev ブランチを取得
+      # 1. dev ブランチ取得
       - name: Checkout dev branch
         uses: actions/checkout@v4
         with:
           ref: dev
-          fetch-depth: 1
 
-      # 2. Node.js セットアップ
+      # 2. PHP セットアップ
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, bcmath, ctype, fileinfo, json, openssl, pdo, tokenizer, xml
+          tools: composer:v2
+
+      # 3. Node.js セットアップ
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      # 3. 依存関係インストール
-      - name: Install dependencies
-        run: npm ci
+      # 4. Composer
+      - name: Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
 
-      # 4. 本番ビルド
-      - name: Build assets
-        run: npm run build
-
-      # 5. デプロイ用ディレクトリ作成
-      - name: Prepare deployment files
+      # 5. npm
+      - name: Install npm dependencies
         run: |
-          mkdir -p deploy
+          npm ci
+          npm run build
 
-          # 必要なファイルをコピー
-          cp -r public/. deploy/
+      # 6. デプロイ用ファイル作成
+      - name: Prepare deployment
+        run: |
+          mkdir deploy
 
-          # 不要なファイルを除外
-          rm -rf deploy/build/.git
-          rm -rf deploy/build/node_modules
+          rsync -a ./ deploy/ \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='node_modules/' \
+            --exclude='tests/' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='deploy/' \
+            --exclude='storage/logs/*' \
+            --exclude='storage/framework/cache/*' \
+            --exclude='storage/framework/sessions/*' \
+            --exclude='storage/framework/views/*'
 
-      # 6. build ブランチへデプロイ
+      # 7. build ブランチへPush
       - name: Deploy to build branch
         uses: peaceiris/actions-gh-pages@v4
         with:
