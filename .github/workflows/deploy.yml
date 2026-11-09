@@ -9,9 +9,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      # 1. 開発ブランチ (dev) のコードを取得
+      # 1. 開発ブランチ (dev) のコードを取得 (全履歴を取得するため fetch-depth: 0 を追加)
       - name: Checkout dev branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # 2. Node.js のセットアップ
       - name: Setup Node.js
@@ -26,11 +28,11 @@ jobs:
           npm ci
           npm run build
 
-      # 4. build ブランチへ成果物を自動コミット＆Push
+      # 4. build ブランチへ成果物を自動コミット＆Push (PATを使用)
       - name: Deploy to build branch
         uses: peaceiris/actions-gh-pages@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          personal_token: ${{ secrets.BUILD_REPO_PAT }}
           publish_branch: build
           publish_dir: ./
           keep_files: false
